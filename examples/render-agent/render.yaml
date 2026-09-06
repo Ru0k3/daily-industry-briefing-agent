@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: provider-neutral-agent-example
+    runtime: python
+    plan: free
+    rootDir: examples/render-agent
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: PROVIDER
+        value: mock
+      - key: MODEL
+        value: gemini-2.5-flash
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: BASE_URL
+        value: http://localhost:11434/v1
+      - key: OPENAI_COMPATIBLE_API_KEY
+        sync: false
+      - key: REQUEST_TIMEOUT_SECONDS
+        value: "60"

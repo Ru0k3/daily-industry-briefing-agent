@@ -33,6 +33,18 @@ Record these fields in `build-sheet.json` for every candidate provider:
 | Operations | What are rate limits, timeouts, quotas, observability, and incident-recovery options? |
 | Portability | How difficult is it to swap the model while keeping tools and application logic? |
 
+## Provider examples
+
+### Google Gemini
+
+Implement Gemini behind the same neutral adapter. Use the official Google Gen AI SDK or the current Gemini API documentation rather than copying request shapes from another provider. Map Gemini function declarations and function responses into the neutral tool contract, validate structured responses at the application boundary, and record the selected model and API version in the build sheet. Keep the Google API key in the deployment secret manager and verify region, quota, safety-setting, file, multimodal, and grounding requirements before launch.
+
+### Open-source and self-hosted models
+
+For open-source models, separate the inference server from the agent application. Common choices include an OpenAI-compatible server such as vLLM, Ollama, or another documented serving layer, but the skill must verify the selected server’s actual tool-calling, structured-output, streaming, batching, GPU, and authentication behavior. Point the adapter at a configurable `BASE_URL`, keep model identifiers in configuration, and test the exact model/server pair rather than assuming that OpenAI-compatible means behavior-compatible.
+
+For production, run the inference server on a suitable GPU or CPU host, restrict network access, set request timeouts and concurrency limits, monitor memory and latency, and document model license obligations. If the user does not need local inference, prefer a hosted provider API to reduce operations burden.
+
 ## Common implementation patterns
 
 ### Hosted managed-agent runtime
