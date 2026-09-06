@@ -1,0 +1,8 @@
+project_id      = "your-gcp-project"
+region          = "us-central1"
+service_name    = "provider-neutral-agent"
+container_image = "us-central1-docker.pkg.dev/your-gcp-project/agent-images/provider-neutral-agent@sha256:replace-me"
+provider        = "gemini"
+model           = "gemini-2.5-flash"
+secret_id       = "provider-api-key"
+# Do not put a real secret in this file. Create a Secret Manager version separately.

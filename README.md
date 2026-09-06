@@ -161,6 +161,46 @@ Choose the host according to the runtime rather than popularity:
 
 For an agent that needs an always-on worker, WebSockets, a queue consumer, or local Ollama, choose an always-on container or VPS. For a scheduled low-frequency agent, a scheduled job is usually cheaper than keeping a process alive. For GPU inference, choose a GPU-capable host or use a hosted model API.
 
+## Streaming responses
+
+The service exposes `POST /stream` and normalizes provider-specific stream events into text fragments, usage metadata, and a completion event internally. Claude uses Messages API SSE events; Gemini uses `streamGenerateContent`; Ollama uses newline-delimited JSON; and OpenAI-compatible endpoints use chat-completion SSE. The client-facing example streams plain text:
+
+```bash
+curl -N -X POST http://127.0.0.1:8000/stream \
+  -H 'Content-Type: application/json' \
+  -d '{"input":"Explain streaming in one sentence."}'
+```
+
+Provider-reported usage is best-effort. Claude and Gemini may report usage in separate events, Ollama reports evaluation counts at the end of a stream, and OpenAI-compatible servers only report usage when the server supports `stream_options.include_usage`.
+
+## Provider benchmark
+
+Use `scripts/benchmark_providers.py` for live comparisons. It measures time to first token, total latency, output size, and provider-reported input/output token usage without printing credentials:
+
+```bash
+python scripts/benchmark_providers.py \
+  --providers claude,gemini,ollama,openai_compatible \
+  --iterations 3 \
+  --output benchmark-results.json
+```
+
+The script skips providers that are not configured and makes live requests only for configured providers. Results are not directly comparable across different models, prompts, regions, hardware, concurrency, or server settings; record those dimensions with every benchmark.
+
+## Terraform on GCP
+
+`infra/terraform/` provisions Cloud Run, a runtime service account, Secret Manager, secret-access IAM, required APIs, and the Cloud Run service. It intentionally avoids putting a secret value in Terraform state by default:
+
+```bash
+cd infra/terraform
+cp terraform.tfvars.example terraform.tfvars
+terraform init
+terraform validate
+terraform plan -var-file=terraform.tfvars
+terraform apply -var-file=terraform.tfvars
+```
+
+Build and push the image first, create the Secret Manager secret version out of band, and use an immutable image digest for production. Review the ingress policy and service account permissions before applying.
+
 ## Provider contract verification
 
 Run the offline provider-matrix script to verify structured-output schema placement and tool-call parsing across Claude, Gemini, native Ollama, and OpenAI-compatible endpoints:

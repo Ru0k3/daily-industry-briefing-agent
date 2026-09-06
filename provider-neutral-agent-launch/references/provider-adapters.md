@@ -15,6 +15,8 @@ request_approval(action, details) -> ApprovalResult
 
 `AgentResult` should carry the final response, structured output when requested, tool events, usage metadata, warnings, and a resumable state reference where supported. The adapter should translate provider-specific events and errors into this neutral shape.
 
+For streaming, expose a second boundary such as `stream_agent(input, context) -> Iterator[StreamEvent]`. Normalize each provider into events with `text`, optional `usage`, optional tool events, and `done`. Claude sends SSE content-block events, Gemini uses `streamGenerateContent`, Ollama returns newline-delimited JSON, and OpenAI-compatible endpoints commonly use chat-completion SSE. Usage is best-effort because providers report input and output counts at different points in the stream; preserve the raw provider usage fields for auditability.
+
 ## Capability matrix
 
 Record these fields in `build-sheet.json` for every candidate provider:
