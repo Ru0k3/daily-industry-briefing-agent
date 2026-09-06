@@ -1,0 +1,32 @@
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: provider-neutral-agent
+  annotations:
+    run.googleapis.com/ingress: internal-and-cloud-load-balancing
+spec:
+  template:
+    metadata:
+      annotations:
+        autoscaling.knative.dev/minScale: "0"
+        autoscaling.knative.dev/maxScale: "10"
+    spec:
+      serviceAccountName: SERVICE_ACCOUNT
+      containers:
+        - image: REGION-docker.pkg.dev/PROJECT_ID/REPOSITORY/provider-neutral-agent:latest
+          ports:
+            - containerPort: 8000
+          env:
+            - name: PROVIDER
+              value: gemini
+            - name: MODEL
+              value: gemini-2.5-flash
+            - name: GEMINI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: gemini-api-key
+                  key: latest
+          resources:
+            limits:
+              cpu: "1"
+              memory: 512Mi

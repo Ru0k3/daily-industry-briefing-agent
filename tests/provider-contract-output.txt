@@ -1,0 +1,5 @@
+PASS claude: structured output schema and tool call round-trip
+PASS gemini: structured output schema and tool call round-trip
+PASS ollama: structured output schema and tool call round-trip
+PASS openai_compatible: structured output schema and tool call round-trip
+PASS provider matrix: 4 providers verified; no network requests made

@@ -161,6 +161,20 @@ Choose the host according to the runtime rather than popularity:
 
 For an agent that needs an always-on worker, WebSockets, a queue consumer, or local Ollama, choose an always-on container or VPS. For a scheduled low-frequency agent, a scheduled job is usually cheaper than keeping a process alive. For GPU inference, choose a GPU-capable host or use a hosted model API.
 
+## Provider contract verification
+
+Run the offline provider-matrix script to verify structured-output schema placement and tool-call parsing across Claude, Gemini, native Ollama, and OpenAI-compatible endpoints:
+
+```bash
+python scripts/verify_provider_contracts.py
+```
+
+The script makes no network requests. It uses representative provider wire formats and exits nonzero if a provider loses the neutral schema or tool-call contract. Live integration tests should remain separately gated because they require credentials, incur provider costs, and can vary with model versions.
+
+## Google Cloud Run deployment
+
+A complete container deployment example is available in `deploy/cloud-run/`. It covers Artifact Registry, Cloud Build, Secret Manager, authenticated Cloud Run deployment, health checks, and provider-specific configuration. Start with `deploy/cloud-run/README.md` and substitute your own project, region, service account, image, and secret names.
+
 ## Docker and Docker Compose
 
 Build and run the reference service in a container:
