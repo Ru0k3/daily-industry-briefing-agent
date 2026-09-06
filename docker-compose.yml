@@ -1,0 +1,29 @@
+services:
+  agent:
+    build: .
+    ports:
+      - "${PORT:-8000}:8000"
+    environment:
+      PROVIDER: ${PROVIDER:-ollama}
+      MODEL: ${MODEL:-qwen3}
+      BASE_URL: ${BASE_URL:-http://ollama:11434/api}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OPENAI_COMPATIBLE_API_KEY: ${OPENAI_COMPATIBLE_API_KEY:-}
+      MAX_TOKENS: ${MAX_TOKENS:-512}
+      REQUEST_TIMEOUT_SECONDS: ${REQUEST_TIMEOUT_SECONDS:-60}
+    depends_on:
+      ollama:
+        condition: service_started
+    restart: unless-stopped
+
+  ollama:
+    image: ollama/ollama:latest
+    volumes:
+      - ollama-data:/root/.ollama
+    expose:
+      - "11434"
+    restart: unless-stopped
+
+volumes:
+  ollama-data:

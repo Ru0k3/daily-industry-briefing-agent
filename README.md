@@ -32,6 +32,7 @@ The example exposes one application boundary, `run_agent(user_input, system)`. T
 |---|---|---|
 | `mock` | Deterministic local smoke test | None |
 | `gemini` | Google Gemini Developer API | `GEMINI_API_KEY`, optional `MODEL` |
+| `claude` | Anthropic Claude Messages API | `ANTHROPIC_API_KEY`, optional `MODEL` and `MAX_TOKENS` |
 | `ollama` | Native Ollama `/api/chat` endpoint | `BASE_URL`, `MODEL`; default is local Ollama |
 | `openai_compatible` | OpenAI-compatible `/v1/chat/completions` endpoint | `BASE_URL`, `MODEL`, optional API key |
 
@@ -90,6 +91,20 @@ python -m pip install google-genai
 
 Keep provider-specific code in `gemini_adapter.py` and expose the same neutral method as the other adapters. Test request construction with mocked transport, then run a small live smoke test with a low-risk prompt and a restricted key.
 
+## Anthropic Claude configuration
+
+For Claude, set `PROVIDER=claude`, `ANTHROPIC_API_KEY`, and a supported Claude model name. The reference adapter calls the Messages API, sends the system instruction separately, and normalizes text content blocks into the neutral response boundary:
+
+```bash
+export PROVIDER=claude
+export ANTHROPIC_API_KEY='your-key'
+export MODEL='claude-sonnet-4-5'
+export MAX_TOKENS=512
+uvicorn app:app --app-dir examples/render-agent --host 127.0.0.1 --port 8000
+```
+
+Keep the key in the host secret manager. For tools, preserve Claude content blocks and implement the `tool_use` to `tool_result` loop described in `provider-neutral-agent-launch/references/structured-output-and-tools.md`. Verify the current Claude model identifier and API capabilities in the official platform documentation before deployment.
+
 ## Ollama and local open-source models
 
 Ollama serves its native API at `http://localhost:11434/api` by default and also provides official Python and JavaScript libraries. [3] The native chat endpoint is `POST /api/chat`; set `stream` to `false` when the application expects one JSON response. [4]
@@ -145,6 +160,36 @@ Choose the host according to the runtime rather than popularity:
 | GitHub Actions | Tests, CI/CD, and low-frequency scheduled jobs | It is not a 24/7 agent host; jobs have time and quota limits. |
 
 For an agent that needs an always-on worker, WebSockets, a queue consumer, or local Ollama, choose an always-on container or VPS. For a scheduled low-frequency agent, a scheduled job is usually cheaper than keeping a process alive. For GPU inference, choose a GPU-capable host or use a hosted model API.
+
+## Docker and Docker Compose
+
+Build and run the reference service in a container:
+
+```bash
+docker build -t provider-neutral-agent .
+docker run --rm -p 8000:8000 \
+  -e PROVIDER=mock \
+  provider-neutral-agent
+```
+
+The included `docker-compose.yml` starts the agent and an Ollama service on a private Compose network:
+
+```bash
+docker compose up --build
+curl http://127.0.0.1:8000/health
+```
+
+The default Compose configuration uses `PROVIDER=ollama`, `MODEL=qwen3`, and `BASE_URL=http://ollama:11434/api`. Pull a model inside the Ollama container before sending requests:
+
+```bash
+docker compose exec ollama ollama pull qwen3
+```
+
+To use Claude or Gemini with Compose, set `PROVIDER`, `MODEL`, and the relevant secret in a local `.env` file or through your deployment secret manager. Do not commit `.env`. The Ollama container is suitable for development and small self-hosted deployments; use a GPU-capable host and explicit resource limits for larger models.
+
+## Structured output and tool calling
+
+See `provider-neutral-agent-launch/references/structured-output-and-tools.md` for the cross-provider contract, provider mapping, request patterns, validation rules, tool execution loop, and safety checklist. Use structured output for final machine-readable results; use tool calling when the model needs the application to execute an operation. Always validate arguments and require authorization before side effects.
 
 ## CI/CD
 

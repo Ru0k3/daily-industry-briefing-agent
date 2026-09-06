@@ -1,8 +1,9 @@
 """Small provider-neutral agent service for the Render deployment example.
 
 The example intentionally keeps the provider boundary explicit. Set PROVIDER=mock for
-local tests, PROVIDER=gemini for Gemini, or PROVIDER=openai_compatible for OpenAI,
-vLLM, Ollama, and other compatible endpoints.
+local tests, PROVIDER=gemini for Gemini, PROVIDER=claude for Anthropic Claude,
+PROVIDER=ollama for native Ollama, or PROVIDER=openai_compatible for OpenAI,
+vLLM, and other compatible endpoints.
 """
 
 import json
@@ -50,6 +51,28 @@ def run_agent(user_input: str, system: str) -> str:
         }
         data = _post_json(url, payload, {})
         return data["candidates"][0]["content"]["parts"][0]["text"]
+
+    if provider == "claude":
+        api_key = os.environ["ANTHROPIC_API_KEY"]
+        model = os.getenv("MODEL", "claude-sonnet-4-5")
+        data = _post_json(
+            "https://api.anthropic.com/v1/messages",
+            {
+                "model": model,
+                "max_tokens": int(os.getenv("MAX_TOKENS", "512")),
+                "system": system,
+                "messages": [{"role": "user", "content": user_input}],
+            },
+            {
+                "x-api-key": api_key,
+                "anthropic-version": "2023-06-01",
+            },
+        )
+        return "".join(
+            block.get("text", "")
+            for block in data.get("content", [])
+            if block.get("type") == "text"
+        )
 
     if provider == "ollama":
         base_url = os.getenv("BASE_URL", "http://localhost:11434/api").rstrip("/")

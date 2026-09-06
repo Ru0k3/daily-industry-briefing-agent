@@ -63,6 +63,35 @@ def test_gemini_request_shape_and_response(monkeypatch):
     assert timeout == 60.0
 
 
+def test_claude_messages_request_shape_and_response(monkeypatch):
+    monkeypatch.setenv("PROVIDER", "claude")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+    monkeypatch.setenv("MODEL", "claude-test")
+    monkeypatch.setenv("MAX_TOKENS", "128")
+    calls, fake = capture_urlopen(
+        {"content": [{"type": "text", "text": "Claude answer"}]}
+    )
+    with patch.object(app, "urlopen", fake):
+        result = app.run_agent("question", "be precise")
+    request, _ = calls[0]
+    body = json.loads(request.data)
+    assert result == "Claude answer"
+    assert request.full_url == "https://api.anthropic.com/v1/messages"
+    assert request.get_header("X-api-key") == "test-key"
+    assert request.get_header("Anthropic-version") == "2023-06-01"
+    assert body["model"] == "claude-test"
+    assert body["max_tokens"] == 128
+    assert body["system"] == "be precise"
+    assert body["messages"] == [{"role": "user", "content": "question"}]
+
+
+def test_missing_claude_key_fails_before_network(monkeypatch):
+    monkeypatch.setenv("PROVIDER", "claude")
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    with pytest.raises(KeyError, match="ANTHROPIC_API_KEY"):
+        app.run_agent("question", "system")
+
+
 def test_ollama_native_request_shape(monkeypatch):
     monkeypatch.setenv("PROVIDER", "ollama")
     monkeypatch.setenv("MODEL", "qwen3")
