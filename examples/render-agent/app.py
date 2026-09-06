@@ -51,6 +51,23 @@ def run_agent(user_input: str, system: str) -> str:
         data = _post_json(url, payload, {})
         return data["candidates"][0]["content"]["parts"][0]["text"]
 
+    if provider == "ollama":
+        base_url = os.getenv("BASE_URL", "http://localhost:11434/api").rstrip("/")
+        model = os.getenv("MODEL", "gemma4")
+        data = _post_json(
+            f"{base_url}/chat",
+            {
+                "model": model,
+                "messages": [
+                    {"role": "system", "content": system},
+                    {"role": "user", "content": user_input},
+                ],
+                "stream": False,
+            },
+            {},
+        )
+        return data["message"]["content"]
+
     if provider == "openai_compatible":
         base_url = os.getenv("BASE_URL", "http://localhost:11434/v1").rstrip("/")
         model = os.getenv("MODEL", "local-model")

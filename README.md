@@ -1,45 +1,191 @@
 # Provider-Neutral Agent Launch
 
-A reusable skill for designing, building, evaluating, deploying, and iterating AI agents without locking the workflow to Anthropic, OpenAI, Google, local models, or another specific provider.
+A provider-neutral skill and reference service for designing, testing, deploying, and iterating AI agents. The workflow separates the **model provider**, **agent runtime**, **application host**, **database**, **secrets**, and **scheduler**, so the same agent design can move between Gemini, OpenAI-compatible services, Ollama, vLLM, Anthropic, or another provider.
 
-## What it does
+> The included service is a small reference implementation, not a complete production agent platform. Add authentication, rate limiting, persistent state, approval workflows, observability, and a durable job system before exposing it to untrusted users.
 
-The skill guides an agent-building session through a practical sequence:
+## Repository layout
 
-1. Understand the job.
-2. Scope a useful v0.
-3. Choose a model provider and adapter.
-4. Choose the agent runtime.
-5. Select application hosting and supporting infrastructure.
-6. Build a versionable launch kit.
-7. Run evaluations and regression tests.
-8. Iterate, add approval gates, and schedule recurring work.
-9. Close out with a clear deployment and next-directions recap.
+```text
+provider-neutral-agent-launch/
+├── provider-neutral-agent-launch/
+│   ├── SKILL.md
+│   └── references/
+│       ├── hosting-options.md
+│       └── provider-adapters.md
+├── examples/render-agent/
+│   ├── app.py
+│   ├── render.yaml
+│   └── requirements.txt
+├── tests/
+│   ├── test_skill_and_example.py
+│   ├── test_llm_abstraction.py
+│   └── test-output.txt
+└── .github/workflows/test.yml
+```
 
-The workflow keeps the model provider, runtime, application host, database, secrets, and scheduler as separate decisions. It supports hosted APIs, provider SDKs, direct API loops, local models, PaaS, VPS, serverless, containers, static frontends, managed databases, queues, and scheduled jobs.
+## How the abstraction works
 
-## Installation
+The example exposes one application boundary, `run_agent(user_input, system)`. The selected provider is configuration rather than application architecture:
 
-Copy the `provider-neutral-agent-launch` directory into your agent platform’s skills directory, or use the platform’s skill installation flow. The required file is `SKILL.md`; the `references/` directory contains supporting material loaded as needed.
+| `PROVIDER` value | Runtime | Required configuration |
+|---|---|---|
+| `mock` | Deterministic local smoke test | None |
+| `gemini` | Google Gemini Developer API | `GEMINI_API_KEY`, optional `MODEL` |
+| `ollama` | Native Ollama `/api/chat` endpoint | `BASE_URL`, `MODEL`; default is local Ollama |
+| `openai_compatible` | OpenAI-compatible `/v1/chat/completions` endpoint | `BASE_URL`, `MODEL`, optional API key |
 
-## Provider support
+The adapter returns plain text to the API layer. A larger implementation should return a structured `AgentResult` containing output, tool events, usage, warnings, and resumable state, as described in `provider-neutral-agent-launch/references/provider-adapters.md`.
 
-The core skill is provider-neutral. To add a model provider, implement the adapter boundary described in `references/provider-adapters.md`, keep the provider endpoint and model in configuration, translate tool calls and results into the neutral contract, and rerun the evaluation set. Gemini can use the official Google Gen AI SDK or API. Open-source models can use a documented serving layer such as vLLM or Ollama, including an OpenAI-compatible endpoint when appropriate; compatibility must be tested for the exact model and server pair.
+## Local setup
 
-## Render example
+Use Python 3.11 or newer. From the repository root:
 
-`examples/render-agent/` contains a small FastAPI service, `render.yaml`, and dependency manifest. Create a Render web service from this repository, set `PROVIDER=mock` for a safe smoke test, or configure `PROVIDER=gemini` with `GEMINI_API_KEY`. For a local or self-hosted OpenAI-compatible model, set `PROVIDER=openai_compatible`, `BASE_URL`, `MODEL`, and the optional `OPENAI_COMPATIBLE_API_KEY`. The service exposes `GET /health` and `POST /run`.
+```bash
+python -m venv .venv
+source .venv/bin/activate
+python -m pip install -r examples/render-agent/requirements.txt
+python -m pip install pytest
+pytest -q
+```
 
-The GitHub Actions workflow in `.github/workflows/test.yml` runs the tests on pushes and pull requests. Render’s `autoDeploy: true` setting can deploy changes after the repository’s checks pass; configure branch protection if production deployments must require passing checks.
+Start the service in mock mode:
 
-## Included references
+```bash
+export PROVIDER=mock
+uvicorn app:app --app-dir examples/render-agent --host 127.0.0.1 --port 8000
+```
 
-- `references/hosting-options.md` contains the supplied hosting catalog. Prices, quotas, and free-tier behavior must be rechecked against official provider documentation before production use.
-- `references/provider-adapters.md` defines the neutral adapter boundary and capability checklist for changing model providers.
+Check it:
 
-## Design principles
+```bash
+curl http://127.0.0.1:8000/health
+curl -X POST http://127.0.0.1:8000/run \
+  -H 'Content-Type: application/json' \
+  -d '{"input":"Summarize this task","system":"Be concise."}'
+```
 
-The skill favors the smallest reliable deployment, explicit evaluation criteria, replaceable provider adapters, safe secret handling, dry runs for external actions, and a numbered `NEXT-DIRECTIONS.md` plan for future versions.
+Never commit a real API key. Use a local `.env` only if it is ignored by Git, and use the host’s secret manager for deployed services.
+
+## Google Gemini configuration
+
+Google’s official Python SDK is `google-genai`; its documentation supports both the Gemini Developer API and the enterprise API. The SDK can read `GEMINI_API_KEY` or `GOOGLE_API_KEY`, although this example uses `GEMINI_API_KEY` explicitly. [1]
+
+For the included reference service, configure:
+
+```bash
+export PROVIDER=gemini
+export GEMINI_API_KEY='your-key'
+export MODEL='gemini-2.5-flash'
+uvicorn app:app --app-dir examples/render-agent --host 127.0.0.1 --port 8000
+```
+
+The example uses the Gemini `generateContent` REST shape. For a production adapter, prefer the current official SDK or current Gemini API documentation, then add translation for function declarations, function-call results, structured outputs, streaming, files, multimodal inputs, and safety settings. Gemini function calling is a four-part loop: define a function, request a model decision, execute the function in your application, and send the function result back to the model. [2]
+
+Install the SDK when implementing a native Python adapter:
+
+```bash
+python -m pip install google-genai
+```
+
+Keep provider-specific code in `gemini_adapter.py` and expose the same neutral method as the other adapters. Test request construction with mocked transport, then run a small live smoke test with a low-risk prompt and a restricted key.
+
+## Ollama and local open-source models
+
+Ollama serves its native API at `http://localhost:11434/api` by default and also provides official Python and JavaScript libraries. [3] The native chat endpoint is `POST /api/chat`; set `stream` to `false` when the application expects one JSON response. [4]
+
+Install Ollama, pull a model, and run the example locally:
+
+```bash
+ollama serve
+ollama pull qwen3
+export PROVIDER=ollama
+export BASE_URL='http://localhost:11434/api'
+export MODEL='qwen3'
+uvicorn app:app --app-dir examples/render-agent --host 127.0.0.1 --port 8000
+```
+
+The example also supports an OpenAI-compatible serving layer. Use that mode for an Ollama-compatible `/v1` endpoint, vLLM, or another server only after confirming the exact model and server support tool calling, structured output, streaming, authentication, and concurrency:
+
+```bash
+export PROVIDER=openai_compatible
+export BASE_URL='http://localhost:11434/v1'
+export MODEL='qwen3'
+export OPENAI_COMPATIBLE_API_KEY='optional-key'
+```
+
+For a remote Ollama host, do not expose port `11434` directly to the public internet. Place it behind a private network or authenticated reverse proxy, restrict ingress to the application host, and use TLS. Ensure the machine has enough RAM or GPU memory for the selected model. Record the model tag, quantization, context length, license, and serving version in the build sheet.
+
+## Render deployment
+
+The checked-in `examples/render-agent/render.yaml` is a Render Blueprint for a Python web service. Render’s FastAPI guide uses a Python service with `pip install -r requirements.txt` and `uvicorn ... --host 0.0.0.0 --port $PORT`. [5]
+
+1. Push this repository to GitHub.
+2. In Render, create a new Blueprint or Web Service from the repository.
+3. Review the service name, root directory, build command, start command, and health path.
+4. Keep `PROVIDER=mock` for the first deployment smoke test.
+5. Add `GEMINI_API_KEY` as a Render secret and change `PROVIDER=gemini` only after the health check passes.
+6. For Ollama, use a separately hosted Ollama machine reachable through a private or authenticated network. Do not assume a small web-service instance can run a useful local model.
+7. Use the `/health` endpoint for the host health check and `/run` for a basic request.
+
+Render is a good fit for a lightweight request/response API. It is not automatically the right place for GPU inference, durable queues, or long-running agent sessions. Add a database and queue when sessions or background work must survive restarts.
+
+## Other deployment choices
+
+Choose the host according to the runtime rather than popularity:
+
+| Host type | Best fit | Important caveat |
+|---|---|---|
+| Render, Koyeb, Railway, Northflank | Git-based Python/Node web services and small workers | Confirm sleep behavior, quotas, persistent storage, and pricing for the selected plan. |
+| Fly.io | Containerized services needing regional placement | You manage more infrastructure and must design persistence and recovery. |
+| Google Cloud Run | Stateless containers and event-driven APIs | Scale-to-zero can add cold starts; use a separate database and queue. |
+| Oracle Cloud, Hetzner, DigitalOcean, Linode, Vultr | Full Linux control, self-hosted Ollama, workers, Docker, or Coolify | You own patching, firewalls, backups, monitoring, and incident recovery. |
+| Coolify, CapRover, Dokku on a VPS | A low-cost self-hosted PaaS | The PaaS is free, but the VPS and operations are not. |
+| Vercel, Netlify, Cloudflare Pages/Workers | Static frontends and short request-based APIs | Do not place long-running workers, private model keys, or stateful inference here without a suitable backend. |
+| GitHub Actions | Tests, CI/CD, and low-frequency scheduled jobs | It is not a 24/7 agent host; jobs have time and quota limits. |
+
+For an agent that needs an always-on worker, WebSockets, a queue consumer, or local Ollama, choose an always-on container or VPS. For a scheduled low-frequency agent, a scheduled job is usually cheaper than keeping a process alive. For GPU inference, choose a GPU-capable host or use a hosted model API.
+
+## CI/CD
+
+`.github/workflows/test.yml` runs on pushes and pull requests to `main`. It installs the example dependencies and runs `pytest -q`. A typical deployment policy is:
+
+1. Run tests on every pull request.
+2. Require the `test` check before merging to `main`.
+3. Let the hosting platform auto-deploy only from `main`.
+4. Store API keys and deployment tokens as repository or host secrets.
+5. Use a separate staging service for live-provider smoke tests.
+6. Require manual approval before enabling external write actions.
+
+The workflow intentionally does not call Gemini, Ollama, or another paid provider. Provider tests use mocked HTTP responses so CI remains deterministic and does not expose credentials.
+
+## Testing strategy
+
+Run the unit suite with:
+
+```bash
+pytest -q
+```
+
+The abstraction tests cover mock behavior, Gemini request construction and response parsing, native Ollama request construction, OpenAI-compatible request construction and authorization, missing credentials, unsupported providers, and upstream timeouts. The latest output is stored in `tests/test-output.txt`.
+
+Add live integration tests separately and gate them behind an explicit environment variable such as `RUN_LIVE_PROVIDER_TESTS=1`. Never make paid provider calls part of the default pull-request suite.
+
+## Security and production checklist
+
+Before production, add authentication and authorization, request size limits, rate limiting, structured input validation, output filtering, audit logging, approval gates for side effects, secret-manager integration, retries with backoff, idempotency keys, durable session storage, queue-based background execution, metrics, traces, alerting, backups, and a rollback procedure. Review each model’s data-retention and license terms. Treat prompts, retrieved documents, tool outputs, and model responses as untrusted data.
+
+## References
+
+[1]: https://googleapis.github.io/python-genai/ — *Google Gen AI Python SDK documentation*
+
+[2]: https://ai.google.dev/gemini-api/docs/function-calling — *Google AI for Developers, Function calling with the Gemini API*
+
+[3]: https://docs.ollama.com/api/introduction — *Ollama API introduction*
+
+[4]: https://docs.ollama.com/api/chat — *Ollama API, Generate a chat message*
+
+[5]: https://render.com/docs/deploy-fastapi — *Render, Deploy a FastAPI App*
 
 ## License
 

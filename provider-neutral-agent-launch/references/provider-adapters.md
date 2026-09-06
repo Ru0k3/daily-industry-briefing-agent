@@ -37,13 +37,42 @@ Record these fields in `build-sheet.json` for every candidate provider:
 
 ### Google Gemini
 
-Implement Gemini behind the same neutral adapter. Use the official Google Gen AI SDK or the current Gemini API documentation rather than copying request shapes from another provider. Map Gemini function declarations and function responses into the neutral tool contract, validate structured responses at the application boundary, and record the selected model and API version in the build sheet. Keep the Google API key in the deployment secret manager and verify region, quota, safety-setting, file, multimodal, and grounding requirements before launch.
+Implement Gemini behind the same neutral adapter. The official `google-genai` Python SDK supports the Gemini Developer API and the Gemini enterprise API; configure the client with `GEMINI_API_KEY` for the Developer API or the documented Google Cloud project and location variables for enterprise use. [1]
+
+Map Gemini function declarations and function-call results into the neutral tool contract. The function-calling loop is: define declarations, send them with the model request, execute the selected function in the application, and send the result back for the final response. [2] Validate structured responses at the application boundary, and record the selected model, API version, region, safety settings, files, multimodal inputs, grounding, and quota assumptions in the build sheet. Keep the Google API key in the deployment secret manager.
+
+A minimal Python configuration is:
+
+```python
+from google import genai
+
+client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
+response = client.models.generate_content(
+    model=os.getenv("MODEL", "gemini-2.5-flash"),
+    contents=user_input,
+)
+text = response.text
+```
+
+Use the current Gemini documentation when adding tools, streaming, structured output, or the Interactions API; do not assume that a request shape from another provider is interchangeable.
 
 ### Open-source and self-hosted models
 
-For open-source models, separate the inference server from the agent application. Common choices include an OpenAI-compatible server such as vLLM, Ollama, or another documented serving layer, but the skill must verify the selected server’s actual tool-calling, structured-output, streaming, batching, GPU, and authentication behavior. Point the adapter at a configurable `BASE_URL`, keep model identifiers in configuration, and test the exact model/server pair rather than assuming that OpenAI-compatible means behavior-compatible.
+For open-source models, separate the inference server from the agent application. Common choices include Ollama, vLLM, or another documented serving layer, but verify the exact model/server pair for tool calling, structured output, streaming, batching, GPU support, and authentication. Point the adapter at a configurable `BASE_URL`, keep model identifiers in configuration, and test the real response schema rather than assuming that OpenAI-compatible means behavior-compatible.
 
-For production, run the inference server on a suitable GPU or CPU host, restrict network access, set request timeouts and concurrency limits, monitor memory and latency, and document model license obligations. If the user does not need local inference, prefer a hosted provider API to reduce operations burden.
+Ollama’s native API is served at `http://localhost:11434/api` by default, and its chat endpoint is `POST /api/chat`. Set `stream: false` when the application expects one JSON response. [3] Ollama also has official Python and JavaScript libraries. [4] A native request has this shape:
+
+```json
+{
+  "model": "qwen3",
+  "messages": [{"role": "user", "content": "Hello"}],
+  "stream": false
+}
+```
+
+For tool use, pass the documented `tools` array and implement the same execute-and-return loop used by other providers. For structured output, validate the returned JSON against the application schema. Do not expose an unauthenticated Ollama port to the public internet; use a private network or authenticated TLS proxy.
+
+For production, run the inference server on a suitable GPU or CPU host, restrict network access, set request timeouts and concurrency limits, monitor memory and latency, pin model tags and serving versions, and document model-license obligations. If the user does not need local inference, prefer a hosted provider API to reduce operations burden.
 
 ## Common implementation patterns
 
@@ -68,3 +97,10 @@ Use this when privacy, offline operation, or cost control dominates. Confirm har
 When changing providers, preserve the neutral agent contract and update only the adapter, model configuration, prompt formatting where necessary, tool-call parsing, structured-output validation, streaming translation, token accounting, safety controls, and evaluation baselines. Rerun the full evaluation set because equivalent model names do not imply equivalent behavior.
 
 Never copy a provider-specific credential into source code. Use a provider-labeled environment variable in `.env.example`, document its acquisition location, and store the real value in the selected host’s secret manager.
+
+## References
+
+[1]: https://googleapis.github.io/python-genai/ — Google Gen AI Python SDK documentation
+[2]: https://ai.google.dev/gemini-api/docs/function-calling — Google Gemini function-calling documentation
+[3]: https://docs.ollama.com/api/introduction — Ollama API introduction
+[4]: https://docs.ollama.com/api/chat — Ollama chat API documentation
