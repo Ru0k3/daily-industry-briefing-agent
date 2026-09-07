@@ -1,0 +1,43 @@
+{
+  "title": "Provider-Neutral Agent",
+  "uid": "provider-neutral-agent",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "15s",
+  "time": {"from": "now-1h", "to": "now"},
+  "templating": {"list": [{"name": "provider", "type": "query", "query": "label_values(agent_requests_total, provider)", "includeAll": true, "multi": true}]},
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Request rate",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+      "targets": [{"expr": "sum by (provider) (rate(agent_requests_total{provider=~\"$provider\"}[5m]))", "legendFormat": "{{provider}}"}],
+      "fieldConfig": {"defaults": {"unit": "reqps"}, "overrides": []}
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Error rate",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+      "targets": [{"expr": "sum by (provider) (rate(agent_errors_total{provider=~\"$provider\"}[5m])) / sum by (provider) (rate(agent_requests_total{provider=~\"$provider\"}[5m]))", "legendFormat": "{{provider}}"}],
+      "fieldConfig": {"defaults": {"unit": "percentunit", "min": 0, "max": 1}, "overrides": []}
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "P95 latency",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+      "targets": [{"expr": "histogram_quantile(0.95, sum by (le, provider) (rate(agent_request_latency_seconds_bucket{provider=~\"$provider\"}[5m])))", "legendFormat": "{{provider}}"}],
+      "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []}
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Provider-reported tokens",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+      "targets": [{"expr": "sum by (provider, direction) (rate(agent_tokens_total{provider=~\"$provider\"}[5m]))", "legendFormat": "{{provider}} {{direction}}"}],
+      "fieldConfig": {"defaults": {"unit": "none"}, "overrides": []}
+    }
+  ]
+}

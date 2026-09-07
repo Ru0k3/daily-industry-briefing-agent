@@ -1,8 +1,7 @@
-name: test
+name: test-and-validate
 
 on:
   push:
-    branches: [main]
   pull_request:
     branches: [main]
 
@@ -25,3 +24,17 @@ jobs:
         run: python scripts/verify_provider_contracts.py
       - name: Run tests
         run: pytest -q
+
+  terraform:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+      - name: Check Terraform formatting
+        run: terraform fmt -check -recursive infra/terraform
+      - name: Initialize Terraform without backend
+        run: terraform -chdir=infra/terraform init -backend=false -input=false
+      - name: Validate Terraform
+        run: terraform -chdir=infra/terraform validate

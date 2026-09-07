@@ -161,6 +161,22 @@ Choose the host according to the runtime rather than popularity:
 
 For an agent that needs an always-on worker, WebSockets, a queue consumer, or local Ollama, choose an always-on container or VPS. For a scheduled low-frequency agent, a scheduled job is usually cheaper than keeping a process alive. For GPU inference, choose a GPU-capable host or use a hosted model API.
 
+## Multi-turn conversation history
+
+Both `/run` and `/stream` accept an optional `conversation_id`. When present, the service retains the recent user and assistant turns and translates them into the message format required by each provider. Use `reset: true` to clear a conversation before starting a new turn:
+
+```bash
+curl -X POST http://127.0.0.1:8000/run \
+  -H 'Content-Type: application/json' \
+  -d '{"conversation_id":"demo-1","input":"My name is Alex."}'
+
+curl -X POST http://127.0.0.1:8000/run \
+  -H 'Content-Type: application/json' \
+  -d '{"conversation_id":"demo-1","input":"What is my name?"}'
+```
+
+The example uses bounded process-local memory, which is appropriate for local development and a single instance. For multiple Cloud Run or container instances, replace `ConversationMemory` with Redis, a database, or another durable shared store, and add authentication and tenant isolation around conversation IDs. Do not place secrets or sensitive data in prompts or unbounded memory.
+
 ## Streaming responses
 
 The service exposes `POST /stream` and normalizes provider-specific stream events into text fragments, usage metadata, and a completion event internally. Claude uses Messages API SSE events; Gemini uses `streamGenerateContent`; Ollama uses newline-delimited JSON; and OpenAI-compatible endpoints use chat-completion SSE. The client-facing example streams plain text:
@@ -185,6 +201,16 @@ python scripts/benchmark_providers.py \
 ```
 
 The script skips providers that are not configured and makes live requests only for configured providers. Results are not directly comparable across different models, prompts, regions, hardware, concurrency, or server settings; record those dimensions with every benchmark.
+
+## Monitoring
+
+The service exposes Prometheus metrics at `/metrics`, including request rate, error count, latency histograms, and provider-reported token counts. Run the local monitoring stack with:
+
+```bash
+docker compose --profile monitoring up --build
+```
+
+Then add Prometheus at `http://prometheus:9090` as the Grafana data source and import `monitoring/grafana-dashboard.json`. The dashboard tracks request rate, error rate, P95 latency, and token rate. The detailed setup is in `monitoring/README.md`. For Cloud Run, use managed Prometheus or an OpenTelemetry-compatible backend rather than exposing `/metrics` publicly.
 
 ## Terraform on GCP
 
@@ -247,7 +273,9 @@ See `provider-neutral-agent-launch/references/structured-output-and-tools.md` fo
 
 ## CI/CD
 
-`.github/workflows/test.yml` runs on pushes and pull requests to `main`. It installs the example dependencies and runs `pytest -q`. A typical deployment policy is:
+`.github/workflows/test.yml` runs on every push and on pull requests targeting `main`. It runs provider contract checks, the Python test suite, `terraform fmt -check`, `terraform init -backend=false`, and `terraform validate`.
+
+A typical deployment policy is:
 
 1. Run tests on every pull request.
 2. Require the `test` check before merging to `main`.

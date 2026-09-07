@@ -25,5 +25,23 @@ services:
       - "11434"
     restart: unless-stopped
 
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    profiles: [monitoring]
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    depends_on:
+      - agent
+
+  grafana:
+    image: grafana/grafana:11.3.0
+    profiles: [monitoring]
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+
 volumes:
   ollama-data:
