@@ -1,0 +1,42 @@
+name: Daily industry briefing
+
+on:
+  schedule:
+    - cron: "0 8 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  briefing:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+      LLM_BASE_URL: ${{ secrets.LLM_BASE_URL }}
+      LLM_MODEL: ${{ vars.LLM_MODEL || 'gpt-4o-mini' }}
+      GMAIL_FROM: ${{ secrets.GMAIL_FROM }}
+      GMAIL_TO: ${{ secrets.GMAIL_TO }}
+      GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+      RSS_FEEDS: ${{ vars.RSS_FEEDS }}
+      LOOKBACK_HOURS: 24
+      MAX_ARTICLES_PER_FEED: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Install dependencies
+        run: python -m pip install -r requirements-industry-briefing.txt
+      - name: Generate and email briefing
+        run: python industry_briefing.py
+      - name: Upload PDF artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: daily-industry-briefing-${{ github.run_id }}
+          path: artifacts/*.pdf
+          if-no-files-found: ignore
+          retention-days: 14
