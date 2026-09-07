@@ -27,23 +27,23 @@ resource "google_project_service" "secretmanager" {
 }
 
 resource "google_project_service" "redis" {
-  count             = var.enable_redis ? 1 : 0
-  project           = var.project_id
-  service           = "redis.googleapis.com"
+  count              = var.enable_redis ? 1 : 0
+  project            = var.project_id
+  service            = "redis.googleapis.com"
   disable_on_destroy = false
 }
 
 resource "google_project_service" "vpcaccess" {
-  count             = var.enable_redis ? 1 : 0
-  project           = var.project_id
-  service           = "vpcaccess.googleapis.com"
+  count              = var.enable_redis ? 1 : 0
+  project            = var.project_id
+  service            = "vpcaccess.googleapis.com"
   disable_on_destroy = false
 }
 
 resource "google_project_service" "servicenetworking" {
-  count             = var.enable_redis ? 1 : 0
-  project           = var.project_id
-  service           = "servicenetworking.googleapis.com"
+  count              = var.enable_redis ? 1 : 0
+  project            = var.project_id
+  service            = "servicenetworking.googleapis.com"
   disable_on_destroy = false
 }
 
@@ -85,16 +85,16 @@ resource "google_vpc_access_connector" "agent" {
 }
 
 resource "google_redis_instance" "agent" {
-  count                    = var.enable_redis ? 1 : 0
-  name                     = "${var.service_name}-redis"
-  tier                     = var.redis_tier
-  memory_size_gb           = var.redis_memory_size_gb
-  region                   = var.region
-  redis_version            = "REDIS_7_2"
-  authorized_network       = data.google_compute_network.selected.id
-  connect_mode             = "PRIVATE_SERVICE_ACCESS"
-  project                  = var.project_id
-  transit_encryption_mode  = "DISABLED"
+  count                   = var.enable_redis ? 1 : 0
+  name                    = "${var.service_name}-redis"
+  tier                    = var.redis_tier
+  memory_size_gb          = var.redis_memory_size_gb
+  region                  = var.region
+  redis_version           = "REDIS_7_2"
+  authorized_network      = data.google_compute_network.selected.id
+  connect_mode            = "PRIVATE_SERVICE_ACCESS"
+  project                 = var.project_id
+  transit_encryption_mode = "DISABLED"
 
   depends_on = [google_project_service.redis, google_service_networking_connection.private_service_access]
 }
@@ -161,7 +161,7 @@ resource "google_cloud_run_v2_service" "agent" {
 
       env {
         name  = "PROVIDER"
-        value = var.provider
+        value = var.model_provider
       }
 
       env {
@@ -178,7 +178,7 @@ resource "google_cloud_run_v2_service" "agent" {
       }
 
       env {
-        name = var.provider == "claude" ? "ANTHROPIC_API_KEY" : var.provider == "gemini" ? "GEMINI_API_KEY" : "OPENAI_COMPATIBLE_API_KEY"
+        name = var.model_provider == "claude" ? "ANTHROPIC_API_KEY" : var.model_provider == "gemini" ? "GEMINI_API_KEY" : "OPENAI_COMPATIBLE_API_KEY"
         value_source {
           secret_key_ref {
             secret  = google_secret_manager_secret.provider_key.secret_id

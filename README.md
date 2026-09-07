@@ -284,6 +284,10 @@ To use Claude or Gemini with Compose, set `PROVIDER`, `MODEL`, and the relevant 
 
 See `provider-neutral-agent-launch/references/structured-output-and-tools.md` for the cross-provider contract, provider mapping, request patterns, validation rules, tool execution loop, and safety checklist. Use structured output for final machine-readable results; use tool calling when the model needs the application to execute an operation. Always validate arguments and require authorization before side effects.
 
+## Load testing
+
+The `loadtest/` directory contains a Locust profile for authenticated tenant traffic. It exercises two-turn conversations, checks history continuity, and treats expected `429` responses as rate-limit observations. Install it with `python -m pip install -r loadtest/requirements.txt`, then run `locust -f loadtest/locustfile.py --host https://your-agent.example --headless --users 50 --spawn-rate 5 --run-time 2m --csv loadtest/results`. The complete runbook covers Redis persistence, concurrency, safe test keys, and interpreting p95 latency and 429 rates.
+
 ## Live provider integration tests
 
 `tests/test_integration_providers.py` contains real API tests for Claude, Gemini, and OpenAI-compatible OpenAI. They are marked `integration` and skip when credentials are absent. The GitHub Actions integration job is deliberately **manual-only** through `workflow_dispatch`, and reads credentials only from encrypted repository secrets named `CLAUDE_API_KEY`, `GEMINI_API_KEY`, and `OPENAI_API_KEY`. Optional model and endpoint values are `CLAUDE_MODEL`, `GEMINI_MODEL`, `OPENAI_MODEL`, and `OPENAI_BASE_URL`.

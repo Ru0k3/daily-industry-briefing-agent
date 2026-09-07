@@ -20,13 +20,13 @@ variable "container_image" {
   type        = string
 }
 
-variable "provider" {
+variable "model_provider" {
   description = "Model provider selected by the container."
   type        = string
   default     = "gemini"
 
   validation {
-    condition     = contains(["gemini", "claude", "ollama", "openai_compatible", "mock"], var.provider)
+    condition     = contains(["gemini", "claude", "ollama", "openai_compatible", "mock"], var.model_provider)
     error_message = "provider must be gemini, claude, ollama, openai_compatible, or mock."
   }
 }

@@ -43,6 +43,8 @@ The configuration defaults to an internal load-balancer ingress policy. Change `
 
 For multi-instance conversation history and distributed rate limiting, set `enable_redis = true`. This provisions a Memorystore Redis instance and a Serverless VPC Access connector, then injects `REDIS_URL` into Cloud Run. `BASIC` is suitable for development; use `STANDARD_HA` for production after reviewing regional availability and cost. Redis is private-networked and should not be exposed publicly.
 
+The provider input is named `model_provider` because `provider` is reserved by Terraform. Set `model_provider = "gemini"`, `"claude"`, or `"openai_compatible"` in `terraform.tfvars`.
+
 The selected provider secret is mapped automatically for Gemini and Claude. For an OpenAI-compatible endpoint, set `provider = "openai_compatible"` and ensure the endpoint and `BASE_URL` are configured in the service. Native Ollama is usually better hosted separately on a suitable private or GPU-capable machine; Cloud Run is not automatically a local-model host.
 
 For endpoint security, set `REQUIRE_API_KEY=true` and provide an `AGENT_API_KEYS` JSON mapping through a deployment secret or secret-backed environment variable. Store only SHA-256 hashes of tenant API keys in the mapping. The API key identifies the tenant, and conversation keys are hashed with that tenant ID so one tenant cannot retrieve another tenant's history. Set `RATE_LIMIT_REQUESTS_PER_MINUTE` to a limit appropriate for the workload.
