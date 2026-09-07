@@ -2,7 +2,11 @@
 
 A provider-neutral skill and reference service for designing, testing, deploying, and iterating AI agents. The workflow separates the **model provider**, **agent runtime**, **application host**, **database**, **secrets**, and **scheduler**, so the same agent design can move between Gemini, OpenAI-compatible services, Ollama, vLLM, Anthropic, or another provider.
 
-> The included service is a small reference implementation, not a complete production agent platform. Add authentication, rate limiting, persistent state, approval workflows, observability, and a durable job system before exposing it to untrusted users.
+> The included service is a small, tested reference implementation. It now includes API-key authentication, tenant-scoped rate limiting, Redis-backed state, and Prometheus metrics, but production deployments still need provider-specific tool authorization, approval workflows, backups, secret rotation, alerting, and incident recovery before exposure to untrusted users.
+
+## How the skill behaves
+
+This repository contains two related layers. `provider-neutral-agent-launch/SKILL.md` is the reusable, language-agnostic skill. It starts with an interview: the agent asks about the job, users, inputs, success criteria, tools, privacy, volume, latency, and whether the work is interactive or recurring. It then scopes a v0, compares providers and runtime patterns, selects hosting and storage separately, builds an evaluation and deployment kit, and closes with a primitives recap and next action. The Python/FastAPI service under `examples/` is only one executable reference implementation of that neutral contract; a TypeScript or another-language adapter can follow the same skill.
 
 ## Repository layout
 
@@ -20,13 +24,18 @@ provider-neutral-agent-launch/
 ├── tests/
 │   ├── test_skill_and_example.py
 │   ├── test_llm_abstraction.py
+│   ├── test_streaming.py
+│   ├── test_security.py
+│   ├── test_integration_providers.py
 │   └── test-output.txt
+├── monitoring/
+├── infra/terraform/
 └── .github/workflows/test.yml
 ```
 
 ## How the abstraction works
 
-The example exposes one application boundary, `run_agent(user_input, system)`. The selected provider is configuration rather than application architecture:
+The example exposes unary `run_agent(user_input, system, history)` and streaming `stream_agent(user_input, system, history)` boundaries. The selected provider is configuration rather than application architecture:
 
 | `PROVIDER` value | Runtime | Required configuration |
 |---|---|---|
@@ -175,7 +184,11 @@ curl -X POST http://127.0.0.1:8000/run \
   -d '{"conversation_id":"demo-1","input":"What is my name?"}'
 ```
 
-The example uses bounded process-local memory, which is appropriate for local development and a single instance. For multiple Cloud Run or container instances, replace `ConversationMemory` with Redis, a database, or another durable shared store, and add authentication and tenant isolation around conversation IDs. Do not place secrets or sensitive data in prompts or unbounded memory.
+The default development mode uses bounded process-local memory. Set `REDIS_URL` to use shared Redis storage across multiple instances; Docker Compose includes a Redis service, and Terraform can provision Memorystore plus the required VPC connector. Conversation keys are hashed with the authenticated tenant ID, so the same conversation ID in two tenants maps to different records. Set `CONVERSATION_TTL_SECONDS` and `MAX_CONVERSATION_TURNS` to bound retention.
+
+For endpoint security, set `REQUIRE_API_KEY=true` and configure `AGENT_API_KEYS` as a JSON object mapping tenant IDs to SHA-256 hashes of their API keys. Generate a hash with `python scripts/hash_api_key.py 'key-from-your-secret-manager'`, then store the JSON mapping in a deployment secret—not in Git. Send the clear API key in `X-API-Key`; the service compares its hash in constant time and derives the tenant identity. Optional `X-Tenant-ID` must match the authenticated tenant. Rate limiting is controlled by `RATE_LIMIT_REQUESTS_PER_MINUTE` and uses Redis when `REDIS_URL` is configured. Never commit clear API keys or the `AGENT_API_KEYS` value.
+
+The example uses bounded process-local memory only when Redis is not configured. For production, use Redis or another durable shared store, authenticate every application endpoint, and add tenant-aware authorization around tools and data access.
 
 ## Streaming responses
 
@@ -270,6 +283,12 @@ To use Claude or Gemini with Compose, set `PROVIDER`, `MODEL`, and the relevant 
 ## Structured output and tool calling
 
 See `provider-neutral-agent-launch/references/structured-output-and-tools.md` for the cross-provider contract, provider mapping, request patterns, validation rules, tool execution loop, and safety checklist. Use structured output for final machine-readable results; use tool calling when the model needs the application to execute an operation. Always validate arguments and require authorization before side effects.
+
+## Live provider integration tests
+
+`tests/test_integration_providers.py` contains real API tests for Claude, Gemini, and OpenAI-compatible OpenAI. They are marked `integration` and skip when credentials are absent. The GitHub Actions integration job is deliberately **manual-only** through `workflow_dispatch`, and reads credentials only from encrypted repository secrets named `CLAUDE_API_KEY`, `GEMINI_API_KEY`, and `OPENAI_API_KEY`. Optional model and endpoint values are `CLAUDE_MODEL`, `GEMINI_MODEL`, `OPENAI_MODEL`, and `OPENAI_BASE_URL`.
+
+Do not put credentials in source files, workflow YAML, pull-request comments, logs, or repository variables. Use a restricted test key, a low-cost model, a short prompt, and provider spending limits. Live tests are not run automatically on every push because that would expose an unnecessary cost and secret-use path.
 
 ## CI/CD
 

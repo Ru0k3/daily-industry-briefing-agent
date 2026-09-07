@@ -5,4 +5,8 @@ container_image = "us-central1-docker.pkg.dev/your-gcp-project/agent-images/prov
 provider        = "gemini"
 model           = "gemini-2.5-flash"
 secret_id       = "provider-api-key"
+enable_redis     = false
+network_name    = "default"
+redis_tier      = "BASIC"
+redis_memory_size_gb = 1
 # Do not put a real secret in this file. Create a Secret Manager version separately.

@@ -17,3 +17,8 @@ output "secret_id" {
   value       = google_secret_manager_secret.provider_key.secret_id
   description = "Secret Manager secret ID."
 }
+
+output "redis_host" {
+  value       = var.enable_redis ? google_redis_instance.agent[0].host : null
+  description = "Private Memorystore Redis host when enable_redis is true."
+}

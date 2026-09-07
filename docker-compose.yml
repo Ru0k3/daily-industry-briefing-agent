@@ -12,8 +12,13 @@ services:
       OPENAI_COMPATIBLE_API_KEY: ${OPENAI_COMPATIBLE_API_KEY:-}
       MAX_TOKENS: ${MAX_TOKENS:-512}
       REQUEST_TIMEOUT_SECONDS: ${REQUEST_TIMEOUT_SECONDS:-60}
+      REQUIRE_API_KEY: ${REQUIRE_API_KEY:-false}
+      AGENT_API_KEYS: "${AGENT_API_KEYS:-{}}"
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
     depends_on:
       ollama:
+        condition: service_started
+      redis:
         condition: service_started
     restart: unless-stopped
 
@@ -23,6 +28,14 @@ services:
       - ollama-data:/root/.ollama
     expose:
       - "11434"
+    restart: unless-stopped
+
+  redis:
+    image: redis:7.4-alpine
+    volumes:
+      - redis-data:/data
+    expose:
+      - "6379"
     restart: unless-stopped
 
   prometheus:
@@ -45,3 +58,4 @@ services:
 
 volumes:
   ollama-data:
+  redis-data:

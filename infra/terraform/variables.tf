@@ -67,3 +67,32 @@ variable "max_instance_count" {
   type        = number
   default     = 10
 }
+
+variable "enable_redis" {
+  description = "Provision Memorystore Redis and attach Cloud Run to the VPC."
+  type        = bool
+  default     = false
+}
+
+variable "network_name" {
+  description = "Existing VPC network name used by the Redis instance and Serverless VPC Access connector."
+  type        = string
+  default     = "default"
+}
+
+variable "redis_tier" {
+  description = "Memorystore Redis tier. BASIC is suitable for development; STANDARD_HA is recommended for production."
+  type        = string
+  default     = "BASIC"
+
+  validation {
+    condition     = contains(["BASIC", "STANDARD_HA"], var.redis_tier)
+    error_message = "redis_tier must be BASIC or STANDARD_HA."
+  }
+}
+
+variable "redis_memory_size_gb" {
+  description = "Memorystore Redis memory size in GiB."
+  type        = number
+  default     = 1
+}
