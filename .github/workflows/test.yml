@@ -20,7 +20,7 @@ jobs:
         with:
           python-version: "3.11"
       - name: Install dependencies
-        run: python -m pip install --upgrade pip && python -m pip install -r examples/render-agent/requirements.txt pytest
+        run: python -m pip install --upgrade pip && python -m pip install -r examples/render-agent/requirements.txt -r requirements-industry-briefing.txt pytest
       - name: Run provider contract checks
         run: python scripts/verify_provider_contracts.py
       - name: Run tests
@@ -47,7 +47,7 @@ jobs:
         with:
           python-version: "3.11"
       - name: Install dependencies
-        run: python -m pip install --upgrade pip && python -m pip install -r examples/render-agent/requirements.txt pytest
+        run: python -m pip install --upgrade pip && python -m pip install -r examples/render-agent/requirements.txt -r requirements-industry-briefing.txt pytest
       - name: Run credential-gated provider tests
         run: pytest -m integration -q
 
